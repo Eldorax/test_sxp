@@ -5,6 +5,9 @@ import org.eclipse.jetty.server.SslConnectionFactory;
 import org.eclipse.jetty.util.ssl.SslContextFactory;
 import org.eclipse.jetty.server.SecureRequestCustomizer;
 import org.eclipse.jetty.server.HttpConfiguration;
+import org.eclipse.jetty.server.SecureRequestCustomizer;
+import org.eclipse.jetty.server.SslConnectionFactory;
+import org.eclipse.jetty.http.HttpVersion;
 
 import org.eclipse.jetty.server.Connector;
 import org.eclipse.jetty.servlet.ServletContextHandler;
@@ -17,77 +20,55 @@ import org.eclipse.jetty.webapp.WebAppContext;
 public class Test {
 
    
-
-    public static void main(String[] args) {
+    public static void main(String[] args) throws Exception {
               	
 	Server server = new Server();
 
-	ServerConnector connector = new ServerConnector(server);
-	connector.setPort(9999);
-	HttpConfiguration https = new HttpConfiguration();
-	https.addCustomizer(new SecureRequestCustomizer());
+	// Http config
+	HttpConfiguration http_config = new HttpConfiguration();
+	http_config.setSecureScheme("https");
+	http_config.setSecurePort(8443);
+	http_config.setOutputBufferSize(38768);
+
+	// Http Connector
+	ServerConnector http = new ServerConnector(server, new HttpConnectionFactory(http_config) );
+	http.setPort(8080);
+	http.setIdleTimeout(30000);
+
+	// SSL Context factory for HTTPS
 	SslContextFactory sslContextFactory = new SslContextFactory();
-	System.out.println("Hey !\n");
-	System.out.println("Hey !\n");
-	 System.out.println("Working Directory = " + System.getProperty("user.dir") + "\n");
-	 System.out.println("Hey !\n");
-	 System.out.println("Hey !\n");
 	sslContextFactory.setKeyStorePath("./keystore.jks");
 	sslContextFactory.setKeyStorePassword("123456");
 	sslContextFactory.setKeyManagerPassword("123456");
 
-	ServerConnector sslConnector = new ServerConnector(server,
-							   new SslConnectionFactory(sslContextFactory, "http/5.0"),
-							   new HttpConnectionFactory(https));
-	sslConnector.setPort(9998);
-	server.setConnectors(new Connector[] { connector, sslConnector });
+	// HTTPS Config
+	HttpConfiguration https_config = new HttpConfiguration(http_config);
+	SecureRequestCustomizer src = new SecureRequestCustomizer();
+	src.setStsMaxAge(2000);
+	src.setStsIncludeSubDomains(true);
+	https_config.addCustomizer(src);
 
+	// HTTPS Connector
+	ServerConnector https = new ServerConnector(server,
+						    new SslConnectionFactory(sslContextFactory, HttpVersion.HTTP_1_1.asString()),
+						    new HttpConnectionFactory(https_config));
+	https.setPort(8443);
+	https.setIdleTimeout(500000);
 
-
-
-	WebAppContext context = new WebAppContext();
-	context.setServer(server);
-	context.setContextPath("/");
-	context.setWar("./keystore.jks");
-
-	TestServlet temp = new TestServlet();
-        context.addServlet( new ServletHolder(temp), "/*" );
-	server.setHandler(context);
+	server.setConnectors(new Connector[] { http, https});
 	
 
-	
-	/*
 	ServletContextHandler context = new ServletContextHandler(ServletContextHandler.SESSIONS);
         context.setContextPath("/");
         server.setHandler(context);
 
-
 	TestServlet temp = new TestServlet();
         context.addServlet( new ServletHolder(temp), "/*" );
-	*/
+	
 
+	server.start();
+	server.join();
 	
-	
-	while (true) {
-	    try {
-		server.start();
-		server.join();
-		break;
-	    } catch (Exception e) {
-		e.printStackTrace();
-	    }
-	}
-	
-	/*
-	try {
-	    System.in.read();
-	    server.stop();
-	    server.join();
-	} catch (Exception e) {
-	    e.printStackTrace();
-	    System.exit(100);
-	    }
-	*/
-	
-    }
+    }	
 }
+
